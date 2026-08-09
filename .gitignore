@@ -1,0 +1,35 @@
+# Maven build output
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+bin/
+.vscode/
+nbproject/private/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+hs_err_pid*.log
+replay_pid*.log
+
+# Local secrets. Real credentials belong in environment variables, never in the repo.
+# Copy application.properties to application-local.properties for machine-specific overrides.
+src/main/resources/application-local.properties
+*.env
+.env
+.env.*
+!.env.example
