@@ -1,0 +1,43 @@
+classDiagram
+    direction TB
+
+    class customers {
+        _id : String (UUID)
+        username : String  «unique index»
+        email : String  «unique index»
+        firstName : String
+        lastName : String
+        phone : String (nullable)
+        passwordHash : String  «Argon2id»
+        createdAt : Date
+        lastLoginAt : Date (nullable)
+    }
+
+    class accounts {
+        _id : String (UUID)
+        accountNumber : String  «unique index»
+        customerId : String  «index, refs customers._id»
+        accountType : String  «CHECKING, SAVINGS»
+        status : String  «ACTIVE, FROZEN, CLOSED»
+        balance : Decimal128  «exact money, never double»
+        createdAt : Date
+        closedAt : Date (nullable)
+    }
+
+    class transactions {
+        _id : String (UUID)
+        accountId : String  «compound index with createdAt»
+        counterpartyAccountId : String (nullable)
+        transactionType : String  «DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT»
+        amount : Decimal128
+        resultingBalance : Decimal128
+        description : String (nullable)
+        createdAt : Date  «descending index»
+    }
+
+    customers "1" --> "0..*" accounts : customerId
+    accounts "1" --> "0..*" transactions : accountId
+    accounts "0..1" --> "0..*" transactions : counterpartyAccountId
+
+    note for accounts "Referenced, not embedded.\nAccounts stay separate documents so a transfer\ncan debit and credit two accounts atomically\nvia a session transaction on a replica set."
+    note for transactions "Append-only ledger. resultingBalance is a\nsnapshot written at the time of the operation,\nmirroring the relational schema exactly so both\nbackends satisfy the same DAO contract."

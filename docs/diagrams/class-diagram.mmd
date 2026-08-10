@@ -1,0 +1,147 @@
+classDiagram
+    direction LR
+
+    class Customer {
+        -String id
+        -String username
+        -String email
+        -String firstName
+        -String lastName
+        -String phone
+        -String passwordHash
+        -Instant createdAt
+        -Instant lastLoginAt
+        +getFullName() String
+    }
+
+    class Account {
+        -String id
+        -String accountNumber
+        -String customerId
+        -AccountType type
+        -AccountStatus status
+        -BigDecimal balance
+        -Instant createdAt
+        -Instant closedAt
+        +isOwnedBy(String) boolean
+        +isTransactable() boolean
+    }
+
+    class Transaction {
+        -String id
+        -String accountId
+        -String counterpartyAccountId
+        -TransactionType type
+        -BigDecimal amount
+        -BigDecimal resultingBalance
+        -String description
+        -Instant createdAt
+    }
+
+    class AccountType {
+        <<enumeration>>
+        CHECKING
+        SAVINGS
+    }
+    class AccountStatus {
+        <<enumeration>>
+        ACTIVE
+        FROZEN
+        CLOSED
+    }
+    class TransactionType {
+        <<enumeration>>
+        DEPOSIT
+        WITHDRAWAL
+        TRANSFER_IN
+        TRANSFER_OUT
+    }
+
+    class CustomerDao {
+        <<interface>>
+        +save(Customer)
+        +findById(String) Optional~Customer~
+        +findByUsername(String) Optional~Customer~
+        +existsByUsername(String) boolean
+        +existsByEmail(String) boolean
+        +updateProfile(Customer) boolean
+        +updatePasswordHash(String, String) boolean
+        +touchLastLogin(String, Instant) boolean
+    }
+
+    class AccountDao {
+        <<interface>>
+        +save(Account)
+        +findById(String) Optional~Account~
+        +findByAccountNumber(String) Optional~Account~
+        +findByCustomerId(String) List~Account~
+        +countByCustomerId(String) long
+        +accountNumberExists(String) boolean
+        +applyDelta(String, BigDecimal, BigDecimal) Optional~BigDecimal~
+        +updateStatus(String, AccountStatus, Instant) boolean
+        +balanceOf(String) BigDecimal
+    }
+
+    class TransactionDao {
+        <<interface>>
+        +save(Transaction)
+        +findByAccountId(String, TransactionFilter) List~Transaction~
+        +findByAccountIds(List, TransactionFilter) List~Transaction~
+        +countByAccountId(String) long
+    }
+
+    class TransferExecutor {
+        <<interface>>
+        +execute(Account, Account, BigDecimal, String) TransferResult
+    }
+
+    class AuthService {
+        +register(...) Customer
+        +login(String, String) Customer
+        +updateProfile(...) Customer
+        +changePassword(...) void
+    }
+    class AccountService {
+        +openAccount(...) Account
+        +listAccounts(String) List~Account~
+        +getBalance(...) BigDecimal
+        +closeAccount(...) Account
+    }
+    class TransactionService {
+        +deposit(...) Transaction
+        +withdraw(...) Transaction
+        +transfer(...) TransferResult
+        +getHistory(...) List~Transaction~
+    }
+    class PasswordEncoder {
+        <<interface>>
+        +hash(String) String
+        +verify(String, String) boolean
+    }
+    class Password4jEncoder {
+        Argon2id via Password4j
+    }
+
+    Customer "1" --> "0..*" Account : owns
+    Account "1" --> "0..*" Transaction : records
+    Account --> AccountType
+    Account --> AccountStatus
+    Transaction --> TransactionType
+
+    AuthService --> CustomerDao
+    AuthService --> PasswordEncoder
+    AccountService --> AccountDao
+    AccountService --> TransactionDao
+    TransactionService --> AccountDao
+    TransactionService --> TransactionDao
+    TransactionService --> TransferExecutor
+    PasswordEncoder <|.. Password4jEncoder
+
+    CustomerDao <|.. PostgresCustomerDao
+    CustomerDao <|.. MongoCustomerDao
+    AccountDao <|.. PostgresAccountDao
+    AccountDao <|.. MongoAccountDao
+    TransactionDao <|.. PostgresTransactionDao
+    TransactionDao <|.. MongoTransactionDao
+    TransferExecutor <|.. PostgresTransferExecutor
+    TransferExecutor <|.. MongoTransferExecutor

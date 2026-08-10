@@ -1,0 +1,146 @@
+direction: down
+
+title: |md
+  # P1_BankingApp — Layered Architecture
+  Dependencies point downward only. Each layer talks to the one below through interfaces.
+| {near: top-center; style.font-size: 26; style.bold: true}
+
+presentation: "Presentation Layer  (com.revature.ccvi.banking.ui)" {
+  style.fill: "#DAE8FC"
+  style.stroke: "#6C8EBF"
+  style.stroke-width: 2
+
+  router: "MenuRouter\nwelcome / main menu, session loop"
+  account_menu: "AccountMenu\nopen, list, balance, close"
+  tx_menu: "TransactionMenu\ndeposit, withdraw, transfer, history"
+  profile_menu: "ProfileMenu\nview, update, change password"
+  io: "ConsoleIO\nprompt + validate + render" {style.fill: "#B8D4F0"}
+  formatter: "ConsoleFormatter\nfixed-width tables"
+  session: "Session\nsigned-in customer"
+
+  router -> account_menu
+  router -> tx_menu
+  router -> profile_menu
+  account_menu -> io
+  tx_menu -> io
+  profile_menu -> io
+  io -> formatter: {style.opacity: 0.4}
+}
+
+service: "Service Layer  (com.revature.ccvi.banking.service)" {
+  style.fill: "#D5E8D4"
+  style.stroke: "#82B366"
+  style.stroke-width: 2
+
+  auth: "AuthService\nregister, login, profile, credentials"
+  account_svc: "AccountService\nopen / close rules, ownership checks"
+  tx_svc: "TransactionService\namount rules, overdraft guard, transfers"
+  rules: "BankingRules\nconfigurable thresholds" {style.fill: "#C0DDBE"}
+  encoder: "PasswordEncoder\nPassword4jEncoder (Argon2id)" {style.fill: "#C0DDBE"}
+
+  auth -> encoder
+  account_svc -> rules
+  tx_svc -> rules
+}
+
+dao: "Persistence Abstraction  (com.revature.ccvi.banking.dao)" {
+  style.fill: "#FFF2CC"
+  style.stroke: "#D6B656"
+  style.stroke-width: 2
+  style.stroke-dash: 4
+
+  customer_dao: "CustomerDao\n«interface»"
+  account_dao: "AccountDao\n«interface»"
+  tx_dao: "TransactionDao\n«interface»"
+  transfer: "TransferExecutor\n«interface» atomic two-legged transfer"
+  filter: "TransactionFilter\nshared query criteria"
+}
+
+impl: "DAO Implementations" {
+  style.fill: "#F8F8F8"
+  style.stroke: "#999999"
+
+  pg: "PostgreSQL  (dao.postgres)" {
+    style.fill: "#FFE6CC"
+    style.stroke: "#D79B00"
+    pg_c: "PostgresCustomerDao"
+    pg_a: "PostgresAccountDao\nguarded UPDATE ... WHERE balance + ? >= floor"
+    pg_t: "PostgresTransactionDao"
+    pg_x: "PostgresTransferExecutor\nsingle JDBC transaction, ordered row locks"
+  }
+
+  mongo: "MongoDB  (dao.mongo)" {
+    style.fill: "#E1D5E7"
+    style.stroke: "#9673A6"
+    mo_c: "MongoCustomerDao"
+    mo_a: "MongoAccountDao\nfindOneAndUpdate with guarded increment"
+    mo_t: "MongoTransactionDao"
+    mo_x: "MongoTransferExecutor\nmulti-document txn on a replica set"
+    mapper: "MongoDocumentMapper\nBSON ⇄ domain, Decimal128"
+  }
+}
+
+config: "Configuration  (com.revature.ccvi.banking.config)" {
+  style.fill: "#FFE6CC"
+  style.stroke: "#D79B00"
+  style.stroke-width: 2
+
+  app_config: "AppConfig\napplication.properties + env + -D overrides"
+  db_type: "DatabaseType\nPOSTGRES | MONGO"
+  provider: "DaoFactoryProvider\nreads db.type, returns one factory"
+  pg_factory: "PostgresDaoFactory"
+  mongo_factory: "MongoDaoFactory"
+  pg_conn: "PostgresConnectionManager\nDriverManager + schema DDL"
+  mongo_conn: "MongoConnectionManager\nMongoClient + index creation"
+
+  app_config -> db_type
+  db_type -> provider
+  provider -> pg_factory
+  provider -> mongo_factory
+  pg_factory -> pg_conn
+  mongo_factory -> mongo_conn
+}
+
+databases: "" {
+  style.opacity: 0
+  postgres_db: "PostgreSQL 16" {shape: cylinder; style.fill: "#336791"; style.font-color: "#FFFFFF"}
+  mongo_db: "MongoDB 8 (replica set)" {shape: cylinder; style.fill: "#4DB33D"; style.font-color: "#FFFFFF"}
+}
+
+entry: "BankingApp.main()\nthe only place the layers are wired together" {
+  shape: hexagon
+  style.fill: "#F5F5F5"
+  style.stroke: "#666666"
+  style.bold: true
+}
+
+entry -> config.provider: "asks for a DaoFactory" {style.stroke-width: 2}
+entry -> presentation.router: "starts the console loop" {style.stroke-width: 2}
+
+presentation.router -> service.auth
+presentation.account_menu -> service.account_svc
+presentation.tx_menu -> service.tx_svc
+presentation.profile_menu -> service.auth
+
+service.auth -> dao.customer_dao
+service.account_svc -> dao.account_dao
+service.account_svc -> dao.tx_dao
+service.tx_svc -> dao.account_dao
+service.tx_svc -> dao.tx_dao
+service.tx_svc -> dao.transfer
+dao.tx_dao -> dao.filter: {style.opacity: 0.4}
+
+dao.customer_dao -> impl.pg.pg_c: "implements" {style.stroke-dash: 3}
+dao.account_dao -> impl.pg.pg_a: "implements" {style.stroke-dash: 3}
+dao.tx_dao -> impl.pg.pg_t: "implements" {style.stroke-dash: 3}
+dao.transfer -> impl.pg.pg_x: "implements" {style.stroke-dash: 3}
+dao.customer_dao -> impl.mongo.mo_c: "implements" {style.stroke-dash: 3}
+dao.account_dao -> impl.mongo.mo_a: "implements" {style.stroke-dash: 3}
+dao.tx_dao -> impl.mongo.mo_t: "implements" {style.stroke-dash: 3}
+dao.transfer -> impl.mongo.mo_x: "implements" {style.stroke-dash: 3}
+impl.mongo.mo_c -> impl.mongo.mapper: {style.opacity: 0.4}
+
+config.provider -> dao: "injects the chosen set" {style.stroke-width: 2; style.stroke: "#D79B00"}
+
+impl.pg -> databases.postgres_db: "JDBC"
+impl.mongo -> databases.mongo_db: "wire protocol"

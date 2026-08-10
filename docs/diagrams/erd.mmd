@@ -1,0 +1,38 @@
+erDiagram
+    CUSTOMERS ||--o{ ACCOUNTS : "owns"
+    ACCOUNTS  ||--o{ TRANSACTIONS : "records"
+    ACCOUNTS  |o..o{ TRANSACTIONS : "counterparty of"
+
+    CUSTOMERS {
+        UUID customer_id PK "gen_random_uuid()"
+        VARCHAR_30 username UK "NOT NULL, lower-cased"
+        VARCHAR_120 email UK "NOT NULL, lower-cased"
+        VARCHAR_60 first_name "NOT NULL"
+        VARCHAR_60 last_name "NOT NULL"
+        VARCHAR_20 phone "NULL"
+        VARCHAR_200 password_hash "NOT NULL, Argon2id"
+        TIMESTAMPTZ created_at "NOT NULL DEFAULT now()"
+        TIMESTAMPTZ last_login_at "NULL"
+    }
+
+    ACCOUNTS {
+        UUID account_id PK
+        CHAR_10 account_number UK "NOT NULL"
+        UUID customer_id FK "NOT NULL, ON DELETE CASCADE"
+        VARCHAR_10 account_type "CHECK CHECKING or SAVINGS"
+        VARCHAR_10 status "CHECK ACTIVE FROZEN CLOSED"
+        NUMERIC_19_2 balance "NOT NULL, CHECK >= 0"
+        TIMESTAMPTZ created_at "NOT NULL DEFAULT now()"
+        TIMESTAMPTZ closed_at "NULL"
+    }
+
+    TRANSACTIONS {
+        UUID transaction_id PK
+        UUID account_id FK "NOT NULL, ON DELETE CASCADE"
+        UUID counterparty_account_id FK "NULL, ON DELETE SET NULL"
+        VARCHAR_15 transaction_type "DEPOSIT WITHDRAWAL TRANSFER_IN TRANSFER_OUT"
+        NUMERIC_19_2 amount "NOT NULL, CHECK > 0"
+        NUMERIC_19_2 resulting_balance "NOT NULL, audit snapshot"
+        VARCHAR_255 description "NULL"
+        TIMESTAMPTZ created_at "NOT NULL DEFAULT now()"
+    }

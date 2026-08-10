@@ -1,0 +1,52 @@
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant TM as TransactionMenu
+    participant IO as ConsoleIO
+    participant TS as TransactionService
+    participant AD as AccountDao
+    participant TX as TransferExecutor
+    participant DB as PostgreSQL / MongoDB
+
+    Customer->>TM: choose "Transfer"
+    TM->>IO: prompt for source account, target number, amount, memo
+    IO-->>TM: validated inputs
+    TM->>TS: transfer(customerId, sourceId, targetNumber, amount, memo)
+
+    TS->>TS: normalize amount to 2dp, reject zero or negative
+    TS->>AD: findById(sourceId)
+    AD-->>TS: source account
+    TS->>TS: assert ownership and ACTIVE status
+    TS->>AD: findByAccountNumber(targetNumber)
+    AD-->>TS: target account
+    TS->>TS: reject self-transfer, assert target is ACTIVE
+
+    alt insufficient funds
+        TS-->>TM: InsufficientFundsException
+        TM->>IO: show error, balance unchanged
+    else funds available
+        TS->>TX: execute(source, target, amount, memo)
+
+        rect rgb(235, 245, 255)
+            note over TX,DB: one atomic unit of work
+            TX->>DB: begin (JDBC transaction / Mongo session)
+            TX->>DB: debit source guarded by balance >= amount
+            alt guard fails (concurrent withdrawal)
+                DB-->>TX: 0 rows modified
+                TX->>DB: rollback
+                TX-->>TS: InsufficientFundsException
+            else guard passes
+                DB-->>TX: source debited
+                TX->>DB: credit target
+                TX->>DB: insert TRANSFER_OUT row (source, resulting balance)
+                TX->>DB: insert TRANSFER_IN row (target, resulting balance)
+                TX->>DB: commit
+                DB-->>TX: committed
+                TX-->>TS: TransferResult(new balances, both ledger rows)
+            end
+        end
+
+        TS-->>TM: TransferResult
+        TM->>IO: "Transferred $X to account N. Your new balance: $Y"
+        IO-->>Customer: confirmation
+    end
